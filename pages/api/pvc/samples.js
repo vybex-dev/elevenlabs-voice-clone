@@ -1,48 +1,58 @@
-import { addPvcSample } from "../../../lib/elevenlabs";
+import { addPvcSamples } from "../../../lib/elevenlabs";
+import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
 
-export const config = { runtime: "edge" };
+// Step 2 of the PVC flow: attach audio samples to an existing PVC voice.
+// Called once per clip (or small batch of clips) as the person records or
+// uploads them in the wizard, rather than one giant request at the end — PVC
+// audio can add up to a couple of hours, which is well beyond what's sane to
+// hold in a single request/response cycle.
+export const config = {
+  runtime: "edge",
+};
 
-// Kept intentionally small per request — the frontend sends one sample per
-// call (one recorded segment, or one uploaded file at a time) instead of
-// bundling everything into a single huge request. This keeps every request
-// well under typical serverless body-size limits, even when a user's total
-// audio adds up to 30+ minutes.
-const MAX_BYTES = 20 * 1024 * 1024; // 20MB per individual sample
+// Per-call cap, not a total-audio cap. Raise this if your Vercel plan's body
+// size limit allows it and you want to batch more clips per call.
+const MAX_BYTES_PER_CALL = 50 * 1024 * 1024; // 50MB
 
-export default async function handler(req) {
-  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-
-  try {
-    const formData = await req.formData();
-    const voiceId = formData.get("voiceId");
-    const audio = formData.get("audio");
-
-    if (!voiceId || typeof voiceId !== "string") {
-      return jsonResponse({ error: "Missing voiceId." }, 400);
-    }
-    if (!audio || typeof audio === "string") {
-      return jsonResponse({ error: "No audio sample received." }, 400);
-    }
-    if (audio.size > MAX_BYTES) {
-      return jsonResponse({ error: "This sample is too large (20MB max per segment)." }, 400);
-    }
-
-    const data = await addPvcSample({
-      voiceId,
-      audioBlob: audio,
-      filename: audio.name || "sample.webm",
-    });
-
-    return jsonResponse({ success: true, data });
-  } catch (err) {
-    console.error("pvc/samples error:", err);
-    return jsonResponse({ error: "Couldn't upload that sample. Please try again." }, 500);
+async function handler(req) {
+  if (req.method !== "POST") {
+    return methodNotAllowed(["POST"]);
   }
-}
 
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
+  const formData = await req.formData();
+  const voiceId = formData.get("voiceId");
+  if (!voiceId || typeof voiceId !== "string") {
+    return jsonResponse({ error: "voiceId is required." }, 400);
+  }
+
+  const audioEntries = formData.getAll("audio").filter((entry) => typeof entry !== "string");
+  if (audioEntries.length === 0) {
+    return jsonResponse({ error: "No audio files received." }, 400);
+  }
+
+  let totalBytes = 0;
+  const files = audioEntries.map((file, i) => {
+    totalBytes += file.size;
+    return { blob: file, filename: file.name || `sample-${Date.now()}-${i}.webm` };
+  });
+
+  if (totalBytes > MAX_BYTES_PER_CALL) {
+    return jsonResponse(
+      { error: `That batch is too large (${Math.round(totalBytes / 1024 / 1024)}MB). Add samples in smaller batches.` },
+      400
+    );
+  }
+
+  const samples = await addPvcSamples({ voiceId, files });
+
+  return jsonResponse({
+    success: true,
+    samples: samples.map((s) => ({
+      sampleId: s.sample_id,
+      fileName: s.file_name,
+      durationSecs: s.duration_secs,
+    })),
   });
 }
+
+export default withErrorHandling(handler);

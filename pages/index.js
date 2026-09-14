@@ -1,46 +1,44 @@
 import Head from "next/head";
-import Link from "next/link";
 import Waveform from "../components/Waveform";
-import VoiceRecorder from "../components/VoiceRecorder";
+import PvcWizard from "../components/PvcWizard";
 
 export default function Home() {
   return (
     <>
       <Head>
-        <title>Clone your voice</title>
+        <title>Professional Voice Clone</title>
         <meta
           name="description"
-          content="Record or upload a short sample and get a digital clone of your own voice."
+          content="Build a high-fidelity Professional Voice Clone of your own voice with ElevenLabs."
         />
       </Head>
 
       <main>
         <section className="hero">
           <div className="hero-text">
-            <p className="eyebrow">Voice cloning</p>
+            <p className="eyebrow">Professional Voice Cloning</p>
             <h1>
-              Speak once.
+              Your voice.
               <br />
-              Sound like you, anywhere.
+              Studio quality, fully yours.
             </h1>
             <p className="sub">
-              Record or upload around 30 minutes of clean audio, verify it&rsquo;s
-              you, and we&rsquo;ll train a professional-grade clone of your voice.
-              Training takes a while, so you can check back on the{" "}
-              <Link href="/status">status page</Link> once you&rsquo;re done.
+              Record or upload samples, verify it&rsquo;s really you, and
+              ElevenLabs will train a high-fidelity clone of your voice.
             </p>
           </div>
           <Waveform />
         </section>
 
         <section className="recorder-section">
-          <VoiceRecorder />
+          <PvcWizard />
         </section>
 
         <footer>
           <p>
             By using this tool you confirm the voice belongs to you or you have
-            permission to clone it.
+            permission to clone it. ElevenLabs will additionally verify this by
+            voice before training.
           </p>
         </footer>
       </main>

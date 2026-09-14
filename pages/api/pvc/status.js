@@ -1,29 +1,35 @@
-import { getPvcStatus } from "../../../lib/elevenlabs";
+import { getVoice } from "../../../lib/elevenlabs";
+import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
 
-export const config = { runtime: "edge" };
+const MODEL_ID = "eleven_multilingual_v2";
 
-export default async function handler(req) {
-  if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+export const config = {
+  runtime: "edge",
+};
 
-  try {
-    const { searchParams } = new URL(req.url);
-    const voiceId = searchParams.get("voiceId");
-    if (!voiceId) return jsonResponse({ error: "Missing voiceId." }, 400);
-
-    const status = await getPvcStatus({ voiceId });
-    return jsonResponse(status);
-  } catch (err) {
-    console.error("pvc/status error:", err);
-    return jsonResponse(
-      { error: "Couldn't check status. Double check the Voice ID and try again." },
-      500
-    );
+async function handler(req) {
+  if (req.method !== "GET") {
+    return methodNotAllowed(["GET"]);
   }
-}
 
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
+  const { searchParams } = new URL(req.url);
+  const voiceId = searchParams.get("voiceId");
+  if (!voiceId) {
+    return jsonResponse({ error: "voiceId query param is required." }, 400);
+  }
+
+  const voice = await getVoice({ voiceId });
+
+  const fineTuning = voice.fine_tuning || {};
+  const state = fineTuning.state ? fineTuning.state[MODEL_ID] : undefined;
+  const progress = fineTuning.progress ? fineTuning.progress[MODEL_ID] : undefined;
+
+  return jsonResponse({
+    voiceId: voice.voice_id,
+    name: voice.name,
+    state: state || "not_started", // e.g. "not_started" | "training" | "fine_tuned" | "failed"
+    progress: progress ?? null,
   });
 }
+
+export default withErrorHandling(handler);

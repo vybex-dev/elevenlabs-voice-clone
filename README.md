@@ -1,60 +1,83 @@
-# Voice Clone MVP (Professional Voice Cloning)
+# Professional Voice Clone (PVC) app
 
-A website where visitors go through ElevenLabs' **Professional Voice Clone**
-(PVC) flow — the highest-fidelity option — and end up with a new voice on
-**your** ElevenLabs account. One Next.js project, one Vercel deploy — no
-separate backend to host.
+A Next.js site where a visitor builds a **Professional Voice Clone (PVC)** —
+ElevenLabs' highest-fidelity cloning tier — of their own voice, entirely
+through a guided wizard, landing on **your** ElevenLabs account. One project,
+one Vercel deploy, no separate backend.
 
-PVC is a multi-step process, not a single upload:
+This replaces the earlier Instant Voice Clone (10-second, near-instant) flow.
+PVC is a different, heavier product: it needs a good amount of audio (30 min
+minimum per ElevenLabs' guidance; this app targets **2 hours** as the
+recommended amount), an identity-verification step, and a training job that
+runs in the background for a while before the voice is usable.
 
-1. **Collect ~30 minutes of audio** — record continuously in the browser
-   (auto-uploaded in 5-minute chunks in the background) or upload one or more
-   files.
-2. **Verify** — ElevenLabs sends back an image containing text; the user
-   reads it aloud and records that, proving they're a real, consenting
-   person.
-3. **Train** — a background job ElevenLabs runs on their end, which can take
-   a while. There's no instant result here.
-4. **Check status** — since there are no accounts yet, the /status page lets
-   anyone paste their Voice ID to see whether training has finished.
+## Why PVC is a multi-step wizard, not one request
 
-## How it works
+Unlike Instant Voice Clone (one file in, one voice out), PVC is a whole
+pipeline on ElevenLabs' side:
 
-- `pages/index.js` — hero + the step-by-step wizard.
-- `components/VoiceRecorder.js` — the wizard itself: setup → collect samples
-  → verify → train → done. Handles mic recording (chunked for long takes),
-  file uploads, the consent checkbox, and polling for training status.
-- `pages/status.js` — standalone page to check a Voice ID's training status.
-- `pages/api/pvc/*.js` — five Vercel **Edge Functions**, one per PVC API step
-  (`create`, `samples`, `captcha`, `verify-captcha`, `status`). `verify-captcha`
-  also kicks off training immediately after a successful verification.
-- `lib/elevenlabs.js` — the actual ElevenLabs API calls, kept separate from
-  the route handlers so it's easy to extend later (per-user metadata, usage
-  limits, a database write, etc.) without touching request handling.
+1. **Create** the voice (name/language/description) → get a `voice_id`.
+2. **Add samples** — as many audio clips as you want, uploaded incrementally
+   as they're recorded/uploaded (not batched into one giant request, since a
+   couple of hours of audio is too much for a single call).
+3. **(Optional) Speaker separation** — if a sample has background noise or
+   more than one voice in it, ElevenLabs can split out the individual voices
+   so you pick the right one. This is opt-in per sample ("Detect speakers")
+   rather than automatic, so clean single-voice recordings skip it entirely.
+4. **Identity verification** — ElevenLabs shows a short CAPTCHA-style passage
+   and requires a recording of you reading it aloud, to confirm you're
+   actually the person whose voice is being cloned. There's a manual-review
+   fallback if that's not possible.
+5. **Train** — kicks off fine-tuning, which is polled until it's done.
 
-Because every API route runs as an Edge Function bundled into the same
-Vercel project as the frontend, there's nothing extra to deploy or keep
-alive, and one failing request doesn't take the rest of the site down.
+Because this spans several ElevenLabs endpoints and can take a while, the
+wizard (`components/PvcWizard.js`) holds all of this state in the browser
+(no database — see "No accounts yet" below) and drives each API route in
+sequence.
 
-Your ElevenLabs API key lives only in a server-side environment variable. It
-is never sent to the browser.
+## How it's organized
 
-### One thing to verify before relying on it
+- `pages/index.js` — the page shell (hero + the wizard).
+- `components/PvcWizard.js` — the actual step-by-step flow: details → samples
+  → verify → train → done.
+- `components/AudioCapture.js` — reusable "record or upload one clip" widget,
+  used both for adding voice samples and for the verification recording.
+- `components/pvc/SpeakerReview.js` — the optional per-sample speaker
+  separation review panel.
+- `pages/api/pvc/*.js` — one Vercel **Edge Function** per ElevenLabs PVC
+  endpoint (create, samples, separate, speakers, speaker-audio,
+  select-speaker, captcha, manual-verification, train, status). Thin
+  pass-throughs that add consent/size checks and keep your API key
+  server-side.
+- `lib/elevenlabs.js` — every ElevenLabs PVC API call, one function each, so
+  the API routes stay tiny and the ElevenLabs-specific details (endpoints,
+  field names, base64 handling) live in one place.
+- `lib/http.js` — tiny shared JSON response / error-handling helpers used by
+  every route in `pages/api/pvc/`.
 
-The CAPTCHA image step (`getPvcCaptcha` in `lib/elevenlabs.js`) is the one
-part of this flow where ElevenLabs' public docs don't fully specify the raw
-HTTP response shape — their official SDK returns a base64 string, but not
-whether the actual REST response is JSON-wrapped, plain text, or a raw image.
-The code handles all three cases defensively, but **test this step for real
-early** (with a real API key) rather than assuming it works from the docs
-alone. If it needs adjusting, that function is the only place to change.
+Your ElevenLabs API key lives only in the `ELEVENLABS_API_KEY` server
+environment variable. It's never sent to the browser — even the CAPTCHA image
+and speaker-preview audio are proxied through Edge routes as data URIs rather
+than exposing a direct, key-bearing ElevenLabs URL to the client.
+
+## ⚠️ One thing to verify once you have a live account
+
+`lib/elevenlabs.js` → `getPvcCaptcha()` has a documented ambiguity: ElevenLabs'
+own Python quickstart treats the CAPTCHA endpoint's response as an
+already-base64-encoded string, while their JS SDK has an open GitHub issue
+(`elevenlabs-js#221`) suggesting the raw response is actually binary image
+bytes. The code handles both cases defensively (branching on response
+`content-type`), but I couldn't confirm which is correct without a live
+Creator-plan account making the call. **Test the verification step early** —
+if the CAPTCHA image doesn't render, that's the branch to fix first (it's
+isolated to that one function).
 
 ## Local development
 
 ```bash
 npm install
 cp .env.example .env.local
-# edit .env.local and paste your real ElevenLabs API key
+# edit .env.local and paste your real ElevenLabs API key (Creator plan or above)
 npm run dev
 ```
 
@@ -62,54 +85,58 @@ Visit `http://localhost:3000`.
 
 Note: `getUserMedia` (microphone access) requires a secure context. It works
 on `localhost` automatically; once deployed, Vercel serves everything over
-HTTPS, so recording will work there too.
+HTTPS, so recording works there too.
 
 ## Deploying to Vercel
 
 1. Push this project to a GitHub repo.
 2. In Vercel, "Add New Project" → import that repo.
 3. In the project's **Settings → Environment Variables**, add:
-   - `ELEVENLABS_API_KEY` = your ElevenLabs API key
-4. Deploy. That's it — frontend and API route ship together.
+   - `ELEVENLABS_API_KEY` = your ElevenLabs API key (must be Creator plan or
+     above — PVC is gated behind that, as shown in the ElevenLabs UI).
+4. Deploy. Frontend and all `/api/pvc/*` routes ship together.
 
 ## Important things to know before going live
 
-- **Requires the Creator plan or above on ElevenLabs.** This applies to the
-  API, not just the dashboard — PVC calls will fail on lower tiers regardless
-  of what this app does.
-- **Voice limits.** ElevenLabs plans cap how many custom voices an account
-  can hold. Since every visitor's clone lands on your one account, check your
-  plan's limit at https://elevenlabs.io/pricing before real traffic hits, or
-  you'll start getting errors when the cap is reached.
-- **This is slow by nature, not by a bug.** Collecting 30 minutes of audio,
-  verifying, and training all take real time. Set that expectation for users
-  up front — this isn't a "clone your voice in 10 seconds" tool.
-- **No accounts yet, by design.** The only record of a clone is the Voice ID
-  shown at the end — nothing is stored anywhere on this app's side. If
-  someone closes the tab mid-training, their Voice ID (shown right after the
-  verification step) is the only way to find it again via `/status`.
-  `lib/elevenlabs.js` and the API routes are kept separate from the UI
-  specifically so adding accounts + a database later is a small change.
-- **No abuse protection yet, by your choice.** The endpoints are open. Since
-  PVC uploads can add up to real storage/processing cost on ElevenLabs' side
-  across many users, this is worth revisiting sooner rather than later —
-  more so than it was for quick Instant Voice Clone.
-- **Single speaker assumed.** This build skips ElevenLabs' speaker-separation
-  step, which exists for recordings with multiple people talking. Samples
-  should be one person, alone, in a quiet room.
-- **Consent.** ElevenLabs requires that the account holder has the right to
-  clone any voice submitted; the CAPTCHA read-aloud step is itself a strong
-  consent signal (the actual person has to be present and speaking), on top
-  of the checkbox at setup.
+- **Plan requirement.** Professional Voice Cloning requires ElevenLabs
+  Creator plan or higher. A request will fail with an ElevenLabs API error if
+  the connected account isn't eligible — worth surfacing more prominently in
+  the UI if you expect visitors on lower-tier or free accounts.
+- **This is slower and heavier than IVC.** Training can take a meaningful
+  amount of time (this varies with how much audio was provided). The wizard
+  polls `/api/pvc/status` every 5 seconds while training; there's no
+  push/webhook wiring here, so if the visitor closes the tab mid-training, the
+  voice still finishes training on ElevenLabs' side — they'd just need the
+  `voice_id` to check on it later (which, per "no accounts yet" below, isn't
+  saved anywhere by this app).
+- **No accounts yet, by design.** Anyone can start a PVC clone, and the only
+  record of it is the Voice ID shown once at the end — nothing is persisted
+  server-side. Every API route is intentionally thin and stateless so that
+  when you're ready to add accounts, you can slot in auth + a database (to
+  track `voice_id` per user, resume in-progress clones, etc.) without
+  rewriting the ElevenLabs integration itself.
+- **No abuse protection yet, by your choice.** The endpoints are open —
+  anyone can trigger (paid, and comparatively expensive) ElevenLabs PVC
+  calls. There are per-request file size caps as basic guardrails, but no
+  rate limiting or bot protection. Given PVC's cost and that training runs
+  regardless of whether the visitor sticks around, this is worth addressing
+  before wide release.
+- **Consent & verification.** The consent checkbox is a first layer, and
+  ElevenLabs' own voice-verification step (the CAPTCHA reading) is a second,
+  stronger one enforced on their end — training won't start without it
+  passing (or manual review being approved).
+- **Removing samples.** The UI lets someone remove a sample from the current
+  session's list, but this doesn't yet call ElevenLabs' delete-sample
+  endpoint (`DELETE /v1/voices/pvc/{voice_id}/samples/{sample_id}`) — it's a
+  straightforward addition to `lib/elevenlabs.js` + a new route if you want
+  removed samples to actually be deleted from ElevenLabs too, rather than
+  just hidden from view.
 
 ## Suggested next steps (when you add accounts)
 
 - Add auth (NextAuth.js, Clerk, or similar).
-- Store `{ userId, voiceId, name, status, createdAt }` in a database
-  (Postgres via Vercel Postgres/Neon, or Supabase) so users can find their
-  own voices without needing to save a Voice ID themselves.
-- Replace the manual `/status` polling page with a notification (email once
-  training finishes) once you're collecting user emails via accounts.
-- Add rate limiting, scoped per-user instead of left fully open.
-- Optionally add a "generate speech" screen using the trained `voiceId` and
+- Store `{ userId, voiceId, name, createdAt, trainingState }` in a database so
+  people can resume an in-progress clone or come back to a finished one.
+- Add real rate limiting / a request quota per user given PVC's cost.
+- Add a "generate speech" screen using the returned `voice_id` and
   ElevenLabs' text-to-speech endpoint.

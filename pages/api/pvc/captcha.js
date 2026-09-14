@@ -1,29 +1,41 @@
-import { getPvcCaptcha } from "../../../lib/elevenlabs";
+import { getPvcCaptcha, verifyPvcCaptcha } from "../../../lib/elevenlabs";
+import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
 
-export const config = { runtime: "edge" };
+// GET  -> fetch the CAPTCHA image (a few lines of text) the voice owner must
+//         read aloud, proving they have permission to use the voice.
+// POST -> submit a recording of them reading it, for verification.
+export const config = {
+  runtime: "edge",
+};
 
-export default async function handler(req) {
-  if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
-
-  try {
+async function handler(req) {
+  if (req.method === "GET") {
     const { searchParams } = new URL(req.url);
     const voiceId = searchParams.get("voiceId");
-    if (!voiceId) return jsonResponse({ error: "Missing voiceId." }, 400);
-
-    const { dataUrl } = await getPvcCaptcha({ voiceId });
-    return jsonResponse({ image: dataUrl });
-  } catch (err) {
-    console.error("pvc/captcha error:", err);
-    return jsonResponse(
-      { error: "Couldn't load the verification image. Please try again." },
-      500
-    );
+    if (!voiceId) {
+      return jsonResponse({ error: "voiceId query param is required." }, 400);
+    }
+    const { imageBase64, mediaType } = await getPvcCaptcha({ voiceId });
+    return jsonResponse({ dataUri: `data:${mediaType};base64,${imageBase64}` });
   }
+
+  if (req.method === "POST") {
+    const formData = await req.formData();
+    const voiceId = formData.get("voiceId");
+    const recording = formData.get("recording");
+
+    if (!voiceId || typeof voiceId !== "string") {
+      return jsonResponse({ error: "voiceId is required." }, 400);
+    }
+    if (!recording || typeof recording === "string") {
+      return jsonResponse({ error: "No recording received." }, 400);
+    }
+
+    const result = await verifyPvcCaptcha({ voiceId, recordingBlob: recording });
+    return jsonResponse({ success: true, ...result });
+  }
+
+  return methodNotAllowed(["GET", "POST"]);
 }
 
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
+export default withErrorHandling(handler);
