@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import Waveform from "../components/Waveform";
 import VoiceRecorder from "../components/VoiceRecorder";
 
@@ -23,8 +24,10 @@ export default function Home() {
               Sound like you, anywhere.
             </h1>
             <p className="sub">
-              Record a short sample or upload one you already have. In under a
-              minute, you&rsquo;ll have a digital clone of your own voice.
+              Record or upload around 30 minutes of clean audio, verify it&rsquo;s
+              you, and we&rsquo;ll train a professional-grade clone of your voice.
+              Training takes a while, so you can check back on the{" "}
+              <Link href="/status">status page</Link> once you&rsquo;re done.
             </p>
           </div>
           <Waveform />
