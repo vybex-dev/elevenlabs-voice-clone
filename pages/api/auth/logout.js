@@ -7,9 +7,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (user) {
-    addLog({
+    await addLog({
       userId: user.id,
       username: user.username,
       event: "logout",

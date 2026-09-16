@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
@@ -28,12 +28,12 @@ export default async function handler(req, res) {
     const progress = fineTuning.progress ? fineTuning.progress[MODEL_ID] : undefined;
     const currentState = state || "not_started";
 
-    const existingEntry = getVoiceEntry(voiceId);
+    const existingEntry = await getVoiceEntry(voiceId);
     if (existingEntry && existingEntry.status !== currentState) {
-      updateVoiceEntry(voiceId, { status: currentState });
+      await updateVoiceEntry(voiceId, { status: currentState });
 
       if (currentState === "fine_tuned") {
-        addLog({
+        await addLog({
           voiceId,
           userId: user.id,
           username: user.username,
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
           message: `Training completed successfully! Voice clone "${voice.name}" (${voiceId}) is ready.`,
         });
       } else if (currentState === "failed") {
-        addLog({
+        await addLog({
           voiceId,
           userId: user.id,
           username: user.username,

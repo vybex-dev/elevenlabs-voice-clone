@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
@@ -22,9 +22,9 @@ export default async function handler(req, res) {
     const selectedModel = modelId || "eleven_multilingual_v2";
     const result = await trainPvcVoice({ voiceId, modelId: selectedModel });
 
-    updateVoiceEntry(voiceId, { status: "training" });
+    await updateVoiceEntry(voiceId, { status: "training" });
 
-    addLog({
+    await addLog({
       voiceId,
       userId: user.id,
       username: user.username,

@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
       description: trimmedDesc,
     });
 
-    const voiceEntry = createVoiceEntry({
+    const voiceEntry = await createVoiceEntry({
       userId: user.id,
       username: user.username,
       voiceId,
@@ -51,12 +51,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, voiceId, voice: voiceEntry });
   } catch (err) {
     console.error("PVC create error:", err);
-    addLog({
-      userId: user.id,
-      username: user.username,
-      event: "voice_create_failed",
-      message: `Failed creating voice "${req.body?.name}": ${err.message}`,
-    });
+    if (user) {
+      await addLog({
+        userId: user.id,
+        username: user.username,
+        event: "voice_create_failed",
+        message: `Failed creating voice "${req.body?.name}": ${err.message}`,
+      });
+    }
     return res.status(500).json({ error: err.message || "Failed to create voice." });
   }
 }

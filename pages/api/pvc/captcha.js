@@ -10,7 +10,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
@@ -52,9 +52,9 @@ export default async function handler(req, res) {
         recordingBlob: recordingFile.blob,
       });
 
-      updateVoiceEntry(voiceId, { status: "verified" });
+      await updateVoiceEntry(voiceId, { status: "verified" });
 
-      addLog({
+      await addLog({
         voiceId,
         userId: user.id,
         username: user.username,

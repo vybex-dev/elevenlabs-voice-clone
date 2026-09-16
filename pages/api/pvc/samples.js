@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
@@ -53,17 +53,17 @@ export default async function handler(req, res) {
     const samples = await addPvcSamples({ voiceId, files: formattedFiles });
 
     const addedDuration = samples.reduce((sum, s) => sum + (s.duration_secs || 0), 0);
-    const existingEntry = getVoiceEntry(voiceId);
+    const existingEntry = await getVoiceEntry(voiceId);
     const newSampleCount = (existingEntry?.sampleCount || 0) + samples.length;
     const newTotalDuration = (existingEntry?.totalDurationSecs || 0) + addedDuration;
 
-    updateVoiceEntry(voiceId, {
+    await updateVoiceEntry(voiceId, {
       status: "samples_added",
       sampleCount: newSampleCount,
       totalDurationSecs: newTotalDuration,
     });
 
-    addLog({
+    await addLog({
       voiceId,
       userId: user.id,
       username: user.username,

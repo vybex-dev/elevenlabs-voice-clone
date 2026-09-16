@@ -12,6 +12,62 @@
   "voices": [],
   "logs": [
     {
+      "id": "log-63c8c412ead3",
+      "voiceId": null,
+      "userId": "user-b5c90a7383d1",
+      "username": "john_doe_fb",
+      "event": "user_deleted",
+      "message": "User account \"john_doe_fb\" was deleted by administrator.",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:21:01.234Z"
+    },
+    {
+      "id": "log-23e9f7bf6893",
+      "voiceId": "voice-test-fb-12345",
+      "userId": "user-b5c90a7383d1",
+      "username": "john_doe_fb",
+      "event": "voice_deleted",
+      "message": "Voice \"John's Firestore Voice\" (voice-test-fb-12345) deleted by john_doe_fb.",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:21:01.233Z"
+    },
+    {
+      "id": "log-7ded09f6b3c4",
+      "voiceId": "voice-test-fb-12345",
+      "userId": "user-b5c90a7383d1",
+      "username": "john_doe_fb",
+      "event": "voice_created",
+      "message": "Voice \"John's Firestore Voice\" (en) created with Voice ID voice-test-fb-12345.",
+      "metadata": {
+        "voiceId": "voice-test-fb-12345",
+        "name": "John's Firestore Voice",
+        "language": "en"
+      },
+      "timestamp": "2026-09-16T18:21:01.232Z"
+    },
+    {
+      "id": "log-7499bc2ac1c5",
+      "voiceId": null,
+      "userId": "user-b5c90a7383d1",
+      "username": "john_doe_fb",
+      "event": "password_updated",
+      "message": "Password updated for user \"john_doe_fb\".",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:21:01.228Z"
+    },
+    {
+      "id": "log-920640b604ab",
+      "voiceId": null,
+      "userId": "user-b5c90a7383d1",
+      "username": "john_doe_fb",
+      "event": "user_created",
+      "message": "Account \"john_doe_fb\" (user) created.",
+      "metadata": {
+        "role": "user"
+      },
+      "timestamp": "2026-09-16T18:21:01.218Z"
+    },
+    {
       "id": "log-805a2ef00adb",
       "voiceId": null,
       "userId": "user-98d9f53ad7e2",

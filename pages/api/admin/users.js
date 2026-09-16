@@ -8,14 +8,14 @@ import {
 
 async function handler(req, res) {
   if (req.method === "GET") {
-    const users = getAllUsers();
+    const users = await getAllUsers();
     return res.status(200).json({ users });
   }
 
   if (req.method === "POST") {
     try {
       const { username, password, role } = req.body || {};
-      const newUser = createUser({
+      const newUser = await createUser({
         username,
         password,
         role: role === "admin" ? "admin" : "user",
@@ -32,7 +32,7 @@ async function handler(req, res) {
       if (!id) {
         return res.status(400).json({ error: "User ID is required." });
       }
-      deleteUser(id);
+      await deleteUser(id);
       return res.status(200).json({ success: true, message: "User deleted successfully." });
     } catch (err) {
       return res.status(400).json({ error: err.message || "Failed to delete user." });
@@ -45,7 +45,7 @@ async function handler(req, res) {
       if (!id || !password) {
         return res.status(400).json({ error: "User ID and new password are required." });
       }
-      updateUserPassword(id, password);
+      await updateUserPassword(id, password);
       return res.status(200).json({ success: true, message: "Password updated successfully." });
     } catch (err) {
       return res.status(400).json({ error: err.message || "Failed to update password." });

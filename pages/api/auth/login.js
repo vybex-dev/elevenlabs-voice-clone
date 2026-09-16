@@ -14,9 +14,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Username and password are required." });
     }
 
-    const user = verifyUserPassword(username, password);
+    const user = await verifyUserPassword(username, password);
     if (!user) {
-      addLog({
+      await addLog({
         userId: "anonymous",
         username: (username || "").trim(),
         event: "login_failed",
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
     res.setHeader("Set-Cookie", cookieHeader);
 
-    addLog({
+    await addLog({
       userId: user.id,
       username: user.username,
       event: "login_success",

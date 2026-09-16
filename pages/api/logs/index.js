@@ -14,12 +14,12 @@ async function handler(req, res) {
   if (req.method === "GET") {
     try {
       const { voiceId, limit } = req.query;
-      const voices = getVoiceEntries({
+      const voices = await getVoiceEntries({
         userId: user.id,
         isAdmin,
       });
 
-      const logs = getLogs({
+      const logs = await getLogs({
         userId: user.id,
         isAdmin,
         voiceId: voiceId || null,
@@ -45,13 +45,13 @@ async function handler(req, res) {
 
       // If voiceId is provided, verify ownership unless admin
       if (voiceId) {
-        const voice = getVoiceEntry(voiceId);
+        const voice = await getVoiceEntry(voiceId);
         if (voice && !isAdmin && voice.userId !== user.id) {
           return res.status(403).json({ error: "Unauthorized for this voice." });
         }
       }
 
-      const log = addLog({
+      const log = await addLog({
         voiceId: voiceId || null,
         userId: user.id,
         username: user.username,
@@ -74,7 +74,7 @@ async function handler(req, res) {
         return res.status(400).json({ error: "voiceId is required to delete." });
       }
 
-      deleteVoiceEntry(voiceId, user);
+      await deleteVoiceEntry(voiceId, user);
       return res.status(200).json({ success: true, message: "Voice entry removed." });
     } catch (err) {
       return res.status(400).json({ error: err.message || "Failed to delete voice entry." });
