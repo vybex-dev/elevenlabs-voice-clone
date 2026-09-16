@@ -1,17 +1,66 @@
+import { useEffect, useState } from "react";
 import Head from "next/head";
+import { useRouter } from "next/router";
+import NavBar from "../components/NavBar";
 import Waveform from "../components/Waveform";
 import PvcWizard from "../components/PvcWizard";
+import VoiceLogs from "../components/VoiceLogs";
 
 export default function Home() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => {
+        if (!res.ok) throw new Error("Unauthenticated");
+        return res.json();
+      })
+      .then((data) => {
+        setCurrentUser(data.user);
+        setLoadingAuth(false);
+      })
+      .catch(() => {
+        router.replace("/login");
+      });
+  }, [router]);
+
+  function handleVoiceUpdated() {
+    setRefreshKey((prev) => prev + 1);
+  }
+
+  if (loadingAuth) {
+    return (
+      <div className="auth-loading">
+        <p>Loading ElevenLabs Voice Studio…</p>
+        <style jsx>{`
+          .auth-loading {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            color: var(--text-muted);
+            font-size: 0.95rem;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <>
       <Head>
-        <title>Professional Voice Clone</title>
+        <title>Professional Voice Clone Studio</title>
         <meta
           name="description"
           content="Build a high-fidelity Professional Voice Clone of your own voice with ElevenLabs."
         />
       </Head>
+
+      <NavBar user={currentUser} />
 
       <main>
         <section className="hero">
@@ -31,7 +80,11 @@ export default function Home() {
         </section>
 
         <section className="recorder-section">
-          <PvcWizard />
+          <PvcWizard onVoiceUpdated={handleVoiceUpdated} />
+        </section>
+
+        <section className="logs-section">
+          <VoiceLogs refreshKey={refreshKey} />
         </section>
 
         <footer>
@@ -47,7 +100,7 @@ export default function Home() {
         main {
           max-width: 1040px;
           margin: 0 auto;
-          padding: 72px 24px 48px;
+          padding: 48px 24px 64px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -59,7 +112,7 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           gap: 40px;
-          margin-bottom: 64px;
+          margin-bottom: 48px;
           flex-wrap: wrap;
         }
 
@@ -90,6 +143,13 @@ export default function Home() {
         }
 
         .recorder-section {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          margin-bottom: 24px;
+        }
+
+        .logs-section {
           width: 100%;
           display: flex;
           justify-content: center;

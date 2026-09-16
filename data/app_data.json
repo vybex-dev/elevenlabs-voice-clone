@@ -1,0 +1,81 @@
+{
+  "users": [
+    {
+      "id": "admin-ad6a48ea",
+      "username": "admin",
+      "passwordHash": "123c6aa53fe5f98d630f35f611e9deca05eccc6e17078f2f1c87b907c5d0984e03f28c8760ed7f54052250ff09dac3e2cc12ac8fc8c913e18f953287d6f5fba9",
+      "salt": "ffbc5dfbc7d1f28b7e416c8f5b151c0b",
+      "role": "admin",
+      "createdAt": "2026-09-16T18:08:36.553Z"
+    }
+  ],
+  "voices": [],
+  "logs": [
+    {
+      "id": "log-805a2ef00adb",
+      "voiceId": null,
+      "userId": "user-98d9f53ad7e2",
+      "username": "john_doe",
+      "event": "user_deleted",
+      "message": "User account \"john_doe\" was deleted by administrator.",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:08:36.575Z"
+    },
+    {
+      "id": "log-a4a1e473ca50",
+      "voiceId": "voice-test-12345",
+      "userId": "user-98d9f53ad7e2",
+      "username": "john_doe",
+      "event": "voice_deleted",
+      "message": "Voice \"John's Custom Voice\" (voice-test-12345) deleted by john_doe.",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:08:36.575Z"
+    },
+    {
+      "id": "log-c9b5efa9a50f",
+      "voiceId": "voice-test-12345",
+      "userId": "user-98d9f53ad7e2",
+      "username": "john_doe",
+      "event": "voice_created",
+      "message": "Voice \"John's Custom Voice\" (en) created with Voice ID voice-test-12345.",
+      "metadata": {
+        "voiceId": "voice-test-12345",
+        "name": "John's Custom Voice",
+        "language": "en"
+      },
+      "timestamp": "2026-09-16T18:08:36.573Z"
+    },
+    {
+      "id": "log-5f8ea5e9b9b4",
+      "voiceId": null,
+      "userId": "user-98d9f53ad7e2",
+      "username": "john_doe",
+      "event": "password_updated",
+      "message": "Password updated for user \"john_doe\".",
+      "metadata": {},
+      "timestamp": "2026-09-16T18:08:36.569Z"
+    },
+    {
+      "id": "log-346387c9ea42",
+      "voiceId": null,
+      "userId": "user-98d9f53ad7e2",
+      "username": "john_doe",
+      "event": "user_created",
+      "message": "Account \"john_doe\" (user) created.",
+      "metadata": {
+        "role": "user"
+      },
+      "timestamp": "2026-09-16T18:08:36.561Z"
+    },
+    {
+      "id": "log-b92f9dfea5b7",
+      "voiceId": null,
+      "userId": "system",
+      "username": "system",
+      "event": "system_initialized",
+      "message": "System initialized with default administrator account.",
+      "timestamp": "2026-09-16T18:08:36.554Z",
+      "metadata": {}
+    }
+  ]
+}

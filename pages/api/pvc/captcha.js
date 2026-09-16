@@ -1,41 +1,74 @@
 import { getPvcCaptcha, verifyPvcCaptcha } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
+import { parseMultipartForm } from "../../../lib/multipart";
+import { updateVoiceEntry, addLog } from "../../../lib/db";
 
-// GET  -> fetch the CAPTCHA image (a few lines of text) the voice owner must
-//         read aloud, proving they have permission to use the voice.
-// POST -> submit a recording of them reading it, for verification.
 export const config = {
-  runtime: "edge",
+  api: {
+    bodyParser: false,
+  },
 };
 
-async function handler(req) {
+export default async function handler(req, res) {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
+  }
+
   if (req.method === "GET") {
-    const { searchParams } = new URL(req.url);
-    const voiceId = searchParams.get("voiceId");
-    if (!voiceId) {
-      return jsonResponse({ error: "voiceId query param is required." }, 400);
+    try {
+      const voiceId = req.query.voiceId;
+      if (!voiceId) {
+        return res.status(400).json({ error: "voiceId query param is required." });
+      }
+
+      const { imageBase64, mediaType } = await getPvcCaptcha({ voiceId });
+      return res.status(200).json({ dataUri: `data:${mediaType};base64,${imageBase64}` });
+    } catch (err) {
+      console.error("PVC captcha GET error:", err);
+      return res.status(500).json({ error: err.message || "Failed to load verification image." });
     }
-    const { imageBase64, mediaType } = await getPvcCaptcha({ voiceId });
-    return jsonResponse({ dataUri: `data:${mediaType};base64,${imageBase64}` });
   }
 
   if (req.method === "POST") {
-    const formData = await req.formData();
-    const voiceId = formData.get("voiceId");
-    const recording = formData.get("recording");
+    try {
+      const { fields, files } = await parseMultipartForm(req);
+      const voiceId = fields.voiceId;
 
-    if (!voiceId || typeof voiceId !== "string") {
-      return jsonResponse({ error: "voiceId is required." }, 400);
-    }
-    if (!recording || typeof recording === "string") {
-      return jsonResponse({ error: "No recording received." }, 400);
-    }
+      if (!voiceId) {
+        return res.status(400).json({ error: "voiceId is required." });
+      }
 
-    const result = await verifyPvcCaptcha({ voiceId, recordingBlob: recording });
-    return jsonResponse({ success: true, ...result });
+      const recordingFile = files.find(
+        (f) => f.fieldName === "recording" || (f.mimeType && f.mimeType.startsWith("audio/"))
+      );
+
+      if (!recordingFile) {
+        return res.status(400).json({ error: "No recording received." });
+      }
+
+      const result = await verifyPvcCaptcha({
+        voiceId,
+        recordingBlob: recordingFile.blob,
+      });
+
+      updateVoiceEntry(voiceId, { status: "verified" });
+
+      addLog({
+        voiceId,
+        userId: user.id,
+        username: user.username,
+        event: "voice_verified",
+        message: `Identity verification completed for voice ${voiceId}.`,
+      });
+
+      return res.status(200).json({ success: true, ...result });
+    } catch (err) {
+      console.error("PVC captcha POST error:", err);
+      return res.status(500).json({ error: err.message || "Verification failed." });
+    }
   }
 
-  return methodNotAllowed(["GET", "POST"]);
+  res.setHeader("Allow", ["GET", "POST"]);
+  return res.status(405).json({ error: "Method not allowed. Use GET or POST." });
 }
-
-export default withErrorHandling(handler);

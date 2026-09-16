@@ -1,27 +1,38 @@
 import { startSpeakerSeparation } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
+import { addLog } from "../../../lib/db";
 
-// Kicks off ElevenLabs' speaker-separation pass on one sample. Only called
-// on-demand (from an explicit "detect speakers / clean up audio" action in
-// the wizard) rather than automatically for every sample — for a normal,
-// single-voice recording it's unnecessary latency, so it's opt-in for the
-// messier cases (background noise, more than one voice in the clip).
-export const config = {
-  runtime: "edge",
-};
-
-async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return methodNotAllowed(["POST"]);
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const { voiceId, sampleId } = await req.json();
-  if (!voiceId || !sampleId) {
-    return jsonResponse({ error: "voiceId and sampleId are required." }, 400);
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
 
-  const result = await startSpeakerSeparation({ voiceId, sampleId });
-  return jsonResponse({ success: true, status: result.status || "ok" });
+  try {
+    const { voiceId, sampleId } = req.body || {};
+    if (!voiceId || !sampleId) {
+      return res.status(400).json({ error: "voiceId and sampleId are required." });
+    }
+
+    const result = await startSpeakerSeparation({ voiceId, sampleId });
+
+    addLog({
+      voiceId,
+      userId: user.id,
+      username: user.username,
+      event: "speaker_separation_started",
+      message: `Speaker separation triggered for sample ${sampleId}.`,
+      metadata: { sampleId },
+    });
+
+    return res.status(200).json({ success: true, status: result.status || "ok" });
+  } catch (err) {
+    console.error("PVC separate error:", err);
+    return res.status(500).json({ error: err.message || "Failed to start speaker separation." });
+  }
 }
-
-export default withErrorHandling(handler);

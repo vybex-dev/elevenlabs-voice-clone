@@ -1,29 +1,34 @@
 import { getSeparatedSpeakerAudio } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
 
-// Lets the wizard play "is this you?" previews for each detected speaker
-// without ever exposing ELEVENLABS_API_KEY to the browser. Returns a data URI
-// the <audio> element can use directly.
-export const config = {
-  runtime: "edge",
-};
-
-async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "GET") {
-    return methodNotAllowed(["GET"]);
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
-  const { searchParams } = new URL(req.url);
-  const voiceId = searchParams.get("voiceId");
-  const sampleId = searchParams.get("sampleId");
-  const speakerId = searchParams.get("speakerId");
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
+  }
+
+  const { voiceId, sampleId, speakerId } = req.query;
   if (!voiceId || !sampleId || !speakerId) {
-    return jsonResponse({ error: "voiceId, sampleId and speakerId query params are required." }, 400);
+    return res.status(400).json({
+      error: "voiceId, sampleId and speakerId query params are required.",
+    });
   }
 
-  const { audioBase64, mediaType } = await getSeparatedSpeakerAudio({ voiceId, sampleId, speakerId });
+  try {
+    const { audioBase64, mediaType } = await getSeparatedSpeakerAudio({
+      voiceId,
+      sampleId,
+      speakerId,
+    });
 
-  return jsonResponse({ dataUri: `data:${mediaType};base64,${audioBase64}` });
+    return res.status(200).json({ dataUri: `data:${mediaType};base64,${audioBase64}` });
+  } catch (err) {
+    console.error("PVC speaker-audio error:", err);
+    return res.status(500).json({ error: err.message || "Failed to load speaker preview." });
+  }
 }
-
-export default withErrorHandling(handler);

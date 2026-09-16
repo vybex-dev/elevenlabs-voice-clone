@@ -49,7 +49,7 @@ function formatDuration(totalSeconds) {
   return `${m}m ${s % 60}s`;
 }
 
-export default function PvcWizard() {
+export default function PvcWizard({ onVoiceUpdated }) {
   const [step, setStep] = useState("details");
   const [error, setError] = useState("");
 
@@ -112,6 +112,7 @@ export default function PvcWizard() {
       if (!res.ok) throw new Error(data.error || "Couldn't create the voice.");
       setVoiceId(data.voiceId);
       setStep("samples");
+      onVoiceUpdated?.();
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -157,6 +158,7 @@ export default function PvcWizard() {
             : s
         )
       );
+      onVoiceUpdated?.();
     } catch (err) {
       setSamples((prev) =>
         prev.map((s) =>
@@ -226,6 +228,7 @@ export default function PvcWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed.");
       setVerified(true);
+      onVoiceUpdated?.();
     } catch (err) {
       setVerifyAttempts((n) => n + 1);
       setError(
@@ -254,6 +257,7 @@ export default function PvcWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't submit manual verification.");
       setManualSubmitted(true);
+      onVoiceUpdated?.();
     } catch (err) {
       const message = err.message || "Something went wrong submitting manual verification.";
       // This is a workspace-level restriction, not something a retry fixes —
@@ -281,6 +285,7 @@ export default function PvcWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start training.");
       setStep("train");
+      onVoiceUpdated?.();
       pollTrainingStatus();
     } catch (err) {
       setError(err.message || "Something went wrong starting training.");
@@ -298,11 +303,13 @@ export default function PvcWizard() {
       if (data.state === "fine_tuned") {
         setTraining(false);
         setStep("done");
+        onVoiceUpdated?.();
         return;
       }
       if (data.state === "failed") {
         setTraining(false);
         setError("Training failed. You can try starting training again.");
+        onVoiceUpdated?.();
         return;
       }
       pollRef.current = setTimeout(pollTrainingStatus, 5000);

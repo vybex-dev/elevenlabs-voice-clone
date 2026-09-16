@@ -1,22 +1,42 @@
 import { selectPvcSampleSpeaker } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
+import { addLog } from "../../../lib/db";
 
-export const config = {
-  runtime: "edge",
-};
-
-async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return methodNotAllowed(["POST"]);
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const { voiceId, sampleId, speakerId } = await req.json();
-  if (!voiceId || !sampleId || !speakerId) {
-    return jsonResponse({ error: "voiceId, sampleId and speakerId are required." }, 400);
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
 
-  await selectPvcSampleSpeaker({ voiceId, sampleId, selectedSpeakerIds: [speakerId] });
-  return jsonResponse({ success: true });
+  try {
+    const { voiceId, sampleId, speakerId } = req.body || {};
+    if (!voiceId || !sampleId || !speakerId) {
+      return res.status(400).json({ error: "voiceId, sampleId and speakerId are required." });
+    }
+
+    await selectPvcSampleSpeaker({
+      voiceId,
+      sampleId,
+      selectedSpeakerIds: [speakerId],
+    });
+
+    addLog({
+      voiceId,
+      userId: user.id,
+      username: user.username,
+      event: "speaker_selected",
+      message: `Selected speaker ${speakerId} for sample ${sampleId}.`,
+      metadata: { sampleId, speakerId },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("PVC select-speaker error:", err);
+    return res.status(500).json({ error: err.message || "Failed to select speaker." });
+  }
 }
-
-export default withErrorHandling(handler);

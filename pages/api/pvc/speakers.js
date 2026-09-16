@@ -1,38 +1,39 @@
 import { getSpeakerSeparationStatus } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
 
-// Polled by the wizard every few seconds after /api/pvc/separate is called,
-// until status is "completed" or "failed".
-export const config = {
-  runtime: "edge",
-};
-
-async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "GET") {
-    return methodNotAllowed(["GET"]);
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
-  const { searchParams } = new URL(req.url);
-  const voiceId = searchParams.get("voiceId");
-  const sampleId = searchParams.get("sampleId");
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
+  }
+
+  const { voiceId, sampleId } = req.query;
   if (!voiceId || !sampleId) {
-    return jsonResponse({ error: "voiceId and sampleId query params are required." }, 400);
+    return res.status(400).json({ error: "voiceId and sampleId query params are required." });
   }
 
-  const data = await getSpeakerSeparationStatus({ voiceId, sampleId });
+  try {
+    const data = await getSpeakerSeparationStatus({ voiceId, sampleId });
 
-  const speakers = data.speakers
-    ? Object.values(data.speakers).map((speaker) => ({
-        speakerId: speaker.speaker_id,
-        durationSecs: speaker.duration_secs,
-      }))
-    : [];
+    const speakers = data.speakers
+      ? Object.values(data.speakers).map((speaker) => ({
+          speakerId: speaker.speaker_id,
+          durationSecs: speaker.duration_secs,
+        }))
+      : [];
 
-  return jsonResponse({
-    status: data.status, // "not_started" | "pending" | "completed" | "failed"
-    speakers,
-    selectedSpeakerIds: data.selected_speaker_ids || [],
-  });
+    return res.status(200).json({
+      status: data.status, // "not_started" | "pending" | "completed" | "failed"
+      speakers,
+      selectedSpeakerIds: data.selected_speaker_ids || [],
+    });
+  } catch (err) {
+    console.error("PVC speakers error:", err);
+    return res.status(500).json({ error: err.message || "Failed to get speaker status." });
+  }
 }
-
-export default withErrorHandling(handler);

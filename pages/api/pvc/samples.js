@@ -1,58 +1,87 @@
 import { addPvcSamples } from "../../../lib/elevenlabs";
-import { jsonResponse, methodNotAllowed, withErrorHandling } from "../../../lib/http";
+import { getSessionUser } from "../../../lib/auth";
+import { parseMultipartForm } from "../../../lib/multipart";
+import { getVoiceEntry, updateVoiceEntry, addLog } from "../../../lib/db";
 
-// Step 2 of the PVC flow: attach audio samples to an existing PVC voice.
-// Called once per clip (or small batch of clips) as the person records or
-// uploads them in the wizard, rather than one giant request at the end — PVC
-// audio can add up to a couple of hours, which is well beyond what's sane to
-// hold in a single request/response cycle.
 export const config = {
-  runtime: "edge",
+  api: {
+    bodyParser: false,
+  },
 };
 
-// Per-call cap, not a total-audio cap. Raise this if your Vercel plan's body
-// size limit allows it and you want to batch more clips per call.
 const MAX_BYTES_PER_CALL = 50 * 1024 * 1024; // 50MB
 
-async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return methodNotAllowed(["POST"]);
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const formData = await req.formData();
-  const voiceId = formData.get("voiceId");
-  if (!voiceId || typeof voiceId !== "string") {
-    return jsonResponse({ error: "voiceId is required." }, 400);
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Please log in." });
   }
 
-  const audioEntries = formData.getAll("audio").filter((entry) => typeof entry !== "string");
-  if (audioEntries.length === 0) {
-    return jsonResponse({ error: "No audio files received." }, 400);
-  }
+  try {
+    const { fields, files } = await parseMultipartForm(req);
+    const voiceId = fields.voiceId;
 
-  let totalBytes = 0;
-  const files = audioEntries.map((file, i) => {
-    totalBytes += file.size;
-    return { blob: file, filename: file.name || `sample-${Date.now()}-${i}.webm` };
-  });
+    if (!voiceId) {
+      return res.status(400).json({ error: "voiceId is required." });
+    }
 
-  if (totalBytes > MAX_BYTES_PER_CALL) {
-    return jsonResponse(
-      { error: `That batch is too large (${Math.round(totalBytes / 1024 / 1024)}MB). Add samples in smaller batches.` },
-      400
+    const audioFiles = files.filter(
+      (f) => f.fieldName === "audio" || (f.mimeType && f.mimeType.startsWith("audio/"))
     );
+
+    if (audioFiles.length === 0) {
+      return res.status(400).json({ error: "No audio files received." });
+    }
+
+    const totalBytes = audioFiles.reduce((sum, f) => sum + f.size, 0);
+    if (totalBytes > MAX_BYTES_PER_CALL) {
+      return res.status(400).json({
+        error: `That batch is too large (${Math.round(totalBytes / 1024 / 1024)}MB). Add samples in smaller batches.`,
+      });
+    }
+
+    const formattedFiles = audioFiles.map((file, i) => ({
+      blob: file.blob,
+      filename: file.filename || `sample-${Date.now()}-${i}.webm`,
+    }));
+
+    const samples = await addPvcSamples({ voiceId, files: formattedFiles });
+
+    const addedDuration = samples.reduce((sum, s) => sum + (s.duration_secs || 0), 0);
+    const existingEntry = getVoiceEntry(voiceId);
+    const newSampleCount = (existingEntry?.sampleCount || 0) + samples.length;
+    const newTotalDuration = (existingEntry?.totalDurationSecs || 0) + addedDuration;
+
+    updateVoiceEntry(voiceId, {
+      status: "samples_added",
+      sampleCount: newSampleCount,
+      totalDurationSecs: newTotalDuration,
+    });
+
+    addLog({
+      voiceId,
+      userId: user.id,
+      username: user.username,
+      event: "sample_uploaded",
+      message: `Added ${samples.length} sample(s) (${Math.round(addedDuration)}s) to voice ${voiceId}.`,
+      metadata: { sampleCount: samples.length, durationSecs: addedDuration },
+    });
+
+    return res.status(200).json({
+      success: true,
+      samples: samples.map((s) => ({
+        sampleId: s.sample_id,
+        fileName: s.file_name,
+        durationSecs: s.duration_secs,
+      })),
+    });
+  } catch (err) {
+    console.error("PVC samples error:", err);
+    return res.status(500).json({ error: err.message || "Failed to upload samples." });
   }
-
-  const samples = await addPvcSamples({ voiceId, files });
-
-  return jsonResponse({
-    success: true,
-    samples: samples.map((s) => ({
-      sampleId: s.sample_id,
-      fileName: s.file_name,
-      durationSecs: s.duration_secs,
-    })),
-  });
 }
-
-export default withErrorHandling(handler);
