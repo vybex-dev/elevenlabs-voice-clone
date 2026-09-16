@@ -16,6 +16,11 @@ export default function AudioCapture({
   accept = "audio/*",
   instructions = "Read a few sentences aloud, clearly, with minimal background noise.",
   confirmLabel = "Use this recording",
+  // When set, this is a hard, short time box (e.g. ElevenLabs' 10-second PVC
+  // captcha window): recording auto-stops at this many seconds, the timer
+  // counts DOWN instead of up, and turns urgent-looking near the end. Leave
+  // unset for normal, long-form sample recording.
+  countdownSeconds = null,
 }) {
   const [mode, setMode] = useState("record"); // "record" | "upload"
   const [isRecording, setIsRecording] = useState(false);
@@ -81,10 +86,11 @@ export default function AudioCapture({
       setIsRecording(true);
       setElapsed(0);
 
+      const hardLimit = countdownSeconds || maxSeconds;
       timerRef.current = setInterval(() => {
         setElapsed((prev) => {
           const next = prev + 1;
-          if (next >= maxSeconds) stopRecording();
+          if (next >= hardLimit) stopRecording();
           return next;
         });
       }, 1000);
@@ -134,8 +140,10 @@ export default function AudioCapture({
     discard();
   }
 
-  const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
-  const seconds = String(elapsed % 60).padStart(2, "0");
+  const displaySeconds = countdownSeconds != null ? Math.max(0, countdownSeconds - elapsed) : elapsed;
+  const minutes = String(Math.floor(displaySeconds / 60)).padStart(2, "0");
+  const seconds = String(displaySeconds % 60).padStart(2, "0");
+  const isUrgent = countdownSeconds != null && displaySeconds <= 4;
 
   return (
     <div className="capture">
@@ -163,7 +171,7 @@ export default function AudioCapture({
           <div className="meter" style={{ "--level": level }}>
             <div className="meter-fill" />
           </div>
-          <div className="timer">
+          <div className={isUrgent ? "timer urgent" : "timer"}>
             {minutes}:{seconds}
           </div>
           {!isRecording ? (
@@ -265,6 +273,10 @@ export default function AudioCapture({
           font-family: var(--font-display);
           font-size: 1.6rem;
           letter-spacing: 0.02em;
+        }
+
+        .timer.urgent {
+          color: var(--danger);
         }
 
         .hint {

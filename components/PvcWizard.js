@@ -74,6 +74,7 @@ export default function PvcWizard() {
   const [manualExtraText, setManualExtraText] = useState("");
   const [manualFiles, setManualFiles] = useState([]);
   const [manualSubmitted, setManualSubmitted] = useState(false);
+  const [manualVerificationUnavailable, setManualVerificationUnavailable] = useState(false);
 
   // Step 4: training
   const [modelId] = useState("eleven_multilingual_v2");
@@ -254,7 +255,16 @@ export default function PvcWizard() {
       if (!res.ok) throw new Error(data.error || "Couldn't submit manual verification.");
       setManualSubmitted(true);
     } catch (err) {
-      setError(err.message || "Something went wrong submitting manual verification.");
+      const message = err.message || "Something went wrong submitting manual verification.";
+      // This is a workspace-level restriction, not something a retry fixes —
+      // stop offering the form once we've seen it, rather than letting
+      // someone burn attempts against a path that will 403 every time.
+      if (message.includes("manual_verification_not_enabled")) {
+        setManualVerificationUnavailable(true);
+        setShowManualVerification(false);
+      } else {
+        setError(message);
+      }
     }
   }
 
@@ -317,6 +327,7 @@ export default function PvcWizard() {
     setVerifyAttempts(0);
     setShowManualVerification(false);
     setManualSubmitted(false);
+    setManualVerificationUnavailable(false);
     setTrainState(null);
     setTrainProgress(null);
   }
@@ -474,8 +485,10 @@ export default function PvcWizard() {
         <div>
           <h3>Verify it's you</h3>
           <p className="muted">
-            Before training, ElevenLabs needs to confirm you have permission to use this voice.
-            Read the lines below aloud and record yourself saying them.
+            Before training, ElevenLabs needs to confirm you have permission to use this voice by
+            matching your voice against the samples you uploaded. You get{" "}
+            <strong>about 10 seconds</strong> — have the image loaded and read out loud the moment
+            you hit record, in the same kind of voice/setup as your samples.
           </p>
 
           {captchaLoading && <p className="hint">Loading verification image…</p>}
@@ -488,12 +501,12 @@ export default function PvcWizard() {
             <>
               <AudioCapture
                 allowUpload={false}
-                maxSeconds={120}
-                instructions="Read every line above clearly, then stop."
+                countdownSeconds={10}
+                instructions="Start speaking the instant you hit record — recording auto-stops at 10 seconds."
                 confirmLabel={verifying ? "Verifying…" : "Submit for verification"}
                 onCapture={submitCaptchaRecording}
               />
-              {verifyAttempts >= 2 && (
+              {verifyAttempts >= 2 && !manualVerificationUnavailable && (
                 <button
                   type="button"
                   className="link-btn"
@@ -501,6 +514,14 @@ export default function PvcWizard() {
                 >
                   Having trouble? Request manual verification instead
                 </button>
+              )}
+              {manualVerificationUnavailable && (
+                <p className="hint">
+                  Manual verification isn't enabled for this ElevenLabs workspace, so retrying the
+                  10-second CAPTCHA above is the only path right now. If it keeps failing, wait a
+                  bit and try again with the same mic/setup you used for your samples, or contact
+                  ElevenLabs support.
+                </p>
               )}
             </>
           )}
