@@ -113,7 +113,9 @@ export default function AdminPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create user.");
 
-      setFormSuccess(`User account "${data.user.username}" created successfully!`);
+      setFormSuccess(
+        `User account "${data.user.username}" created successfully!`,
+      );
       setNewUsername("");
       setNewPassword("");
       setNewRole("user");
@@ -132,14 +134,16 @@ export default function AdminPage() {
 
     if (
       !confirm(
-        `Are you sure you want to delete user "${user.username}"? They will lose access immediately.`
+        `Are you sure you want to delete user "${user.username}"? They will lose access immediately.`,
       )
     ) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/admin/users?id=${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/users?id=${user.id}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete user.");
       loadAdminData();
@@ -214,7 +218,7 @@ export default function AdminPage() {
   return (
     <>
       <Head>
-        <title>Admin Portal - ElevenLabs Voice Studio</title>
+        <title>Admin Portal - Voice Studio</title>
       </Head>
 
       <NavBar user={currentUser} />
@@ -226,11 +230,16 @@ export default function AdminPage() {
               <p className="eyebrow">Platform Administration</p>
               <h1>Admin Portal & Gateway</h1>
               <p className="sub">
-                Manage assigned credentials for voice users and inspect global voice clone activity logs.
+                Manage assigned credentials for voice users and inspect global
+                voice clone activity logs.
               </p>
             </div>
 
-            <button type="button" onClick={loadAdminData} className="refresh-data-btn">
+            <button
+              type="button"
+              onClick={loadAdminData}
+              className="refresh-data-btn"
+            >
               🔄 Refresh Data
             </button>
           </header>
@@ -280,7 +289,8 @@ export default function AdminPage() {
                 <div>
                   <h2>User Accounts</h2>
                   <p className="toolbar-sub">
-                    Assign fixed usernames and passwords for your team and users to access the studio.
+                    Assign fixed usernames and passwords for your team and users
+                    to access the studio.
                   </p>
                 </div>
                 <button
@@ -292,14 +302,18 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {formSuccess && <div className="success-banner">{formSuccess}</div>}
+              {formSuccess && (
+                <div className="success-banner">{formSuccess}</div>
+              )}
 
               {/* Add User Drawer / Card */}
               {showAddUser && (
                 <div className="add-user-card">
                   <h3>Assign New User Account</h3>
                   <form onSubmit={handleCreateUser} className="add-user-form">
-                    {formError && <div className="error-alert">{formError}</div>}
+                    {formError && (
+                      <div className="error-alert">{formError}</div>
+                    )}
 
                     <div className="form-row">
                       <label className="field">
@@ -326,9 +340,14 @@ export default function AdminPage() {
 
                       <label className="field">
                         <span>Role</span>
-                        <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                        <select
+                          value={newRole}
+                          onChange={(e) => setNewRole(e.target.value)}
+                        >
                           <option value="user">User (Voice Studio only)</option>
-                          <option value="admin">Administrator (Full Access)</option>
+                          <option value="admin">
+                            Administrator (Full Access)
+                          </option>
                         </select>
                       </label>
                     </div>
@@ -360,20 +379,26 @@ export default function AdminPage() {
                             <span className="user-avatar-sm">
                               {user.username.charAt(0).toUpperCase()}
                             </span>
-                            <span className="user-cell-name">{user.username}</span>
+                            <span className="user-cell-name">
+                              {user.username}
+                            </span>
                           </div>
                         </td>
                         <td>
                           <span
                             className={`role-badge ${
-                              user.role === "admin" ? "admin-badge" : "user-badge-tag"
+                              user.role === "admin"
+                                ? "admin-badge"
+                                : "user-badge-tag"
                             }`}
                           >
                             {user.role}
                           </span>
                         </td>
                         <td>{user.voicesCount || 0} voices</td>
-                        <td className="date-cell">{formatDate(user.createdAt)}</td>
+                        <td className="date-cell">
+                          {formatDate(user.createdAt)}
+                        </td>
                         <td className="actions-cell">
                           <button
                             type="button"
@@ -417,7 +442,8 @@ export default function AdminPage() {
                 <div>
                   <h2>Global Platform Entry Logs</h2>
                   <p className="toolbar-sub">
-                    Live system and voice cloning events across all user sessions.
+                    Live system and voice cloning events across all user
+                    sessions.
                   </p>
                 </div>
                 <div className="search-box">
@@ -432,13 +458,17 @@ export default function AdminPage() {
 
               <div className="logs-list">
                 {filteredLogs.length === 0 ? (
-                  <div className="empty-logs">No logs found matching filter.</div>
+                  <div className="empty-logs">
+                    No logs found matching filter.
+                  </div>
                 ) : (
                   filteredLogs.map((log) => (
                     <div key={log.id} className="log-row">
                       <div className="log-left">
                         <span className="log-user-tag">@{log.username}</span>
-                        <span className="log-event-tag">{log.event.replace(/_/g, " ")}</span>
+                        <span className="log-event-tag">
+                          {log.event.replace(/_/g, " ")}
+                        </span>
                         {log.voiceId && (
                           <code className="log-voice-code" title="Voice ID">
                             {log.voiceId}
@@ -446,7 +476,9 @@ export default function AdminPage() {
                         )}
                       </div>
                       <div className="log-msg">{log.message}</div>
-                      <div className="log-time">{formatDate(log.timestamp)}</div>
+                      <div className="log-time">
+                        {formatDate(log.timestamp)}
+                      </div>
                     </div>
                   ))
                 )}
@@ -459,7 +491,9 @@ export default function AdminPage() {
             <div className="modal-backdrop">
               <div className="modal-card">
                 <h3>Reset Password for "{editingUsername}"</h3>
-                <p className="modal-sub">Enter a new fixed password for this account.</p>
+                <p className="modal-sub">
+                  Enter a new fixed password for this account.
+                </p>
 
                 {pwError && <div className="error-alert">{pwError}</div>}
                 {pwSuccess && <div className="success-banner">{pwSuccess}</div>}

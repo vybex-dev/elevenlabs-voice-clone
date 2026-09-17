@@ -74,7 +74,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
   const [manualExtraText, setManualExtraText] = useState("");
   const [manualFiles, setManualFiles] = useState([]);
   const [manualSubmitted, setManualSubmitted] = useState(false);
-  const [manualVerificationUnavailable, setManualVerificationUnavailable] = useState(false);
+  const [manualVerificationUnavailable, setManualVerificationUnavailable] =
+    useState(false);
 
   // Step 4: training
   const [modelId] = useState("eleven_multilingual_v2");
@@ -142,7 +143,10 @@ export default function PvcWizard({ onVoiceUpdated }) {
       const form = new FormData();
       form.append("voiceId", voiceId);
       form.append("audio", blob, `sample-${localId}.webm`);
-      const res = await fetch("/api/pvc/samples", { method: "POST", body: form });
+      const res = await fetch("/api/pvc/samples", {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed.");
       const uploaded = data.samples?.[0];
@@ -155,15 +159,17 @@ export default function PvcWizard({ onVoiceUpdated }) {
                 sampleId: uploaded?.sampleId,
                 durationSecs: uploaded?.durationSecs ?? s.durationSecs,
               }
-            : s
-        )
+            : s,
+        ),
       );
       onVoiceUpdated?.();
     } catch (err) {
       setSamples((prev) =>
         prev.map((s) =>
-          s.localId === localId ? { ...s, uploadStatus: "error", error: err.message } : s
-        )
+          s.localId === localId
+            ? { ...s, uploadStatus: "error", error: err.message }
+            : s,
+        ),
       );
     }
   }
@@ -181,18 +187,27 @@ export default function PvcWizard({ onVoiceUpdated }) {
 
   function toggleCleanup(localId) {
     setSamples((prev) =>
-      prev.map((s) => (s.localId === localId ? { ...s, showCleanup: !s.showCleanup } : s))
+      prev.map((s) =>
+        s.localId === localId ? { ...s, showCleanup: !s.showCleanup } : s,
+      ),
     );
   }
 
   function markSpeakerResolved(localId) {
     setSamples((prev) =>
-      prev.map((s) => (s.localId === localId ? { ...s, speakerResolved: true } : s))
+      prev.map((s) =>
+        s.localId === localId ? { ...s, speakerResolved: true } : s,
+      ),
     );
   }
 
-  const totalSeconds = samples.reduce((sum, s) => sum + (s.durationSecs || 0), 0);
-  const uploadedCount = samples.filter((s) => s.uploadStatus === "uploaded").length;
+  const totalSeconds = samples.reduce(
+    (sum, s) => sum + (s.durationSecs || 0),
+    0,
+  );
+  const uploadedCount = samples.filter(
+    (s) => s.uploadStatus === "uploaded",
+  ).length;
   const stillUploading = samples.some((s) => s.uploadStatus === "uploading");
   const canProceedFromSamples = uploadedCount > 0 && !stillUploading;
 
@@ -203,7 +218,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
     try {
       const res = await fetch(`/api/pvc/captcha?voiceId=${voiceId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't load the verification image.");
+      if (!res.ok)
+        throw new Error(data.error || "Couldn't load the verification image.");
       setCaptchaDataUri(data.dataUri);
     } catch (err) {
       setError(err.message || "Something went wrong loading verification.");
@@ -224,7 +240,10 @@ export default function PvcWizard({ onVoiceUpdated }) {
       const form = new FormData();
       form.append("voiceId", voiceId);
       form.append("recording", blob, "captcha-recording.webm");
-      const res = await fetch("/api/pvc/captcha", { method: "POST", body: form });
+      const res = await fetch("/api/pvc/captcha", {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed.");
       setVerified(true);
@@ -233,7 +252,7 @@ export default function PvcWizard({ onVoiceUpdated }) {
       setVerifyAttempts((n) => n + 1);
       setError(
         err.message ||
-          "That recording didn't verify. Make sure you read all the lines clearly, then try again."
+          "That recording didn't verify. Make sure you read all the lines clearly, then try again.",
       );
       loadCaptcha(); // captchas are typically single-use — fetch a fresh one
     } finally {
@@ -253,13 +272,18 @@ export default function PvcWizard({ onVoiceUpdated }) {
       form.append("voiceId", voiceId);
       form.append("extraText", manualExtraText);
       manualFiles.forEach((f) => form.append("files", f));
-      const res = await fetch("/api/pvc/manual-verification", { method: "POST", body: form });
+      const res = await fetch("/api/pvc/manual-verification", {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't submit manual verification.");
+      if (!res.ok)
+        throw new Error(data.error || "Couldn't submit manual verification.");
       setManualSubmitted(true);
       onVoiceUpdated?.();
     } catch (err) {
-      const message = err.message || "Something went wrong submitting manual verification.";
+      const message =
+        err.message || "Something went wrong submitting manual verification.";
       // This is a workspace-level restriction, not something a retry fixes —
       // stop offering the form once we've seen it, rather than letting
       // someone burn attempts against a path that will 403 every time.
@@ -297,7 +321,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
     try {
       const res = await fetch(`/api/pvc/status?voiceId=${voiceId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't check training status.");
+      if (!res.ok)
+        throw new Error(data.error || "Couldn't check training status.");
       setTrainState(data.state);
       setTrainProgress(data.progress);
       if (data.state === "fine_tuned") {
@@ -357,8 +382,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
         <form onSubmit={handleCreateVoice}>
           <h3>Create your Professional Voice Clone</h3>
           <p className="muted">
-            Start with a name and the language you'll be recording in. You'll add audio samples
-            next.
+            Start with a name and the language you'll be recording in. You'll
+            add audio samples next.
           </p>
 
           <label className="field">
@@ -374,7 +399,10 @@ export default function PvcWizard({ onVoiceUpdated }) {
 
           <label className="field">
             <span>Language of your samples</span>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
               {LANGUAGES.map(([code, label]) => (
                 <option key={code} value={code}>
                   {label}
@@ -395,15 +423,22 @@ export default function PvcWizard({ onVoiceUpdated }) {
           </label>
 
           <label className="consent">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
             <span>
-              This is my own voice, or I have the legal right to create a professional clone of the
-              voice I'll be uploading. I understand ElevenLabs will require me to verify this by
-              voice before training begins.
+              This is my own voice, or I have the legal right to create a
+              professional clone of the voice I'll be uploading.
             </span>
           </label>
 
-          <button type="submit" className="primary" disabled={!consent || creating}>
+          <button
+            type="submit"
+            className="primary"
+            disabled={!consent || creating}
+          >
             {creating ? "Creating voice…" : "Continue"}
           </button>
         </form>
@@ -413,17 +448,24 @@ export default function PvcWizard({ onVoiceUpdated }) {
         <div>
           <h3>Add audio samples</h3>
           <p className="muted">
-            Record as many takes as you like, or upload existing recordings. For best results,
-            ElevenLabs recommends aiming for around <strong>2 hours</strong> of clean, varied
-            audio in total — more (clean) audio generally means a better clone. There's no hard
+            Record as many takes as you like, or upload existing recordings. For
+            best results, We recommends aiming for around{" "}
+            <strong>2 hours</strong> of clean, varied audio in total — more
+            (clean) audio generally means a better clone. There's no hard
             minimum here, but a few minutes alone won't get great results.
           </p>
 
           <div className="total-bar">
-            <div className="total-bar-fill" style={{ width: `${Math.min(100, (totalSeconds / RECOMMENDED_SECONDS) * 100)}%` }} />
+            <div
+              className="total-bar-fill"
+              style={{
+                width: `${Math.min(100, (totalSeconds / RECOMMENDED_SECONDS) * 100)}%`,
+              }}
+            />
           </div>
           <p className="hint">
-            {formatDuration(totalSeconds)} collected · recommended target {formatDuration(RECOMMENDED_SECONDS)}
+            {formatDuration(totalSeconds)} collected · recommended target{" "}
+            {formatDuration(RECOMMENDED_SECONDS)}
           </p>
 
           <AudioCapture
@@ -440,14 +482,24 @@ export default function PvcWizard({ onVoiceUpdated }) {
                   <div className="sample-row">
                     <audio controls src={s.previewUrl} />
                     <div className="sample-meta">
-                      {s.uploadStatus === "uploading" && <span className="tag pending">Uploading…</span>}
+                      {s.uploadStatus === "uploading" && (
+                        <span className="tag pending">Uploading…</span>
+                      )}
                       {s.uploadStatus === "uploaded" && (
                         <span className="tag ok">
-                          {s.durationSecs ? formatDuration(s.durationSecs) : "Uploaded"}
+                          {s.durationSecs
+                            ? formatDuration(s.durationSecs)
+                            : "Uploaded"}
                         </span>
                       )}
-                      {s.uploadStatus === "error" && <span className="tag err">Upload failed</span>}
-                      <button type="button" className="link-btn" onClick={() => removeSample(s.localId)}>
+                      {s.uploadStatus === "error" && (
+                        <span className="tag err">Upload failed</span>
+                      )}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => removeSample(s.localId)}
+                      >
                         Remove
                       </button>
                     </div>
@@ -461,7 +513,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
                           className="link-btn cleanup-toggle"
                           onClick={() => toggleCleanup(s.localId)}
                         >
-                          Background noise or more than one voice in this clip? Detect speakers →
+                          Background noise or more than one voice in this clip?
+                          Detect speakers →
                         </button>
                       ) : (
                         <SpeakerReview
@@ -492,16 +545,23 @@ export default function PvcWizard({ onVoiceUpdated }) {
         <div>
           <h3>Verify it's you</h3>
           <p className="muted">
-            Before training, ElevenLabs needs to confirm you have permission to use this voice by
-            matching your voice against the samples you uploaded. You get{" "}
-            <strong>about 10 seconds</strong> — have the image loaded and read out loud the moment
-            you hit record, in the same kind of voice/setup as your samples.
+            Before training, we needs to confirm you have permission to use this
+            voice by matching your voice against the samples you uploaded. You
+            get <strong>about 10 seconds</strong> — have the image loaded and
+            read out loud the moment you hit record, in the same kind of
+            voice/setup as your samples.
           </p>
 
-          {captchaLoading && <p className="hint">Loading verification image…</p>}
+          {captchaLoading && (
+            <p className="hint">Loading verification image…</p>
+          )}
           {captchaDataUri && !verified && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={captchaDataUri} alt="Text to read aloud for verification" className="captcha-image" />
+            <img
+              src={captchaDataUri}
+              alt="Text to read aloud for verification"
+              className="captcha-image"
+            />
           )}
 
           {!verified && !showManualVerification && (
@@ -510,7 +570,9 @@ export default function PvcWizard({ onVoiceUpdated }) {
                 allowUpload={false}
                 countdownSeconds={10}
                 instructions="Start speaking the instant you hit record — recording auto-stops at 10 seconds."
-                confirmLabel={verifying ? "Verifying…" : "Submit for verification"}
+                confirmLabel={
+                  verifying ? "Verifying…" : "Submit for verification"
+                }
                 onCapture={submitCaptchaRecording}
               />
               {verifyAttempts >= 2 && !manualVerificationUnavailable && (
@@ -524,10 +586,10 @@ export default function PvcWizard({ onVoiceUpdated }) {
               )}
               {manualVerificationUnavailable && (
                 <p className="hint">
-                  Manual verification isn't enabled for this ElevenLabs workspace, so retrying the
-                  10-second CAPTCHA above is the only path right now. If it keeps failing, wait a
-                  bit and try again with the same mic/setup you used for your samples, or contact
-                  ElevenLabs support.
+                  Manual verification isn't enabled for this the workspace, so
+                  retrying the 10-second CAPTCHA above is the only path right
+                  now. If it keeps failing, wait a bit and try again with the
+                  same mic/setup you used for your samples, or contact admin.
                 </p>
               )}
             </>
@@ -535,8 +597,15 @@ export default function PvcWizard({ onVoiceUpdated }) {
 
           {verified && (
             <>
-              <p className="hint success">Verified! You're ready to train the voice.</p>
-              <button type="button" className="primary" onClick={startTraining} disabled={training}>
+              <p className="hint success">
+                Verified! You're ready to train the voice.
+              </p>
+              <button
+                type="button"
+                className="primary"
+                onClick={startTraining}
+                disabled={training}
+              >
                 Start training
               </button>
             </>
@@ -545,16 +614,19 @@ export default function PvcWizard({ onVoiceUpdated }) {
           {showManualVerification && !verified && (
             <form className="manual-form" onSubmit={submitManualVerification}>
               <p className="hint">
-                Manual verification is reviewed by ElevenLabs directly and can take longer than
-                the automatic check. Attach supporting documents (e.g. photo ID) — exactly what's
-                needed can vary, so contact ElevenLabs support if you're unsure.
+                Manual verification is reviewed by admin directly and can take
+                longer than the automatic check. Attach supporting documents
+                (e.g. photo ID) — exactly what's needed can vary, so contact us
+                for support if you're unsure.
               </p>
               <label className="field">
                 <span>Supporting files</span>
                 <input
                   type="file"
                   multiple
-                  onChange={(e) => setManualFiles(Array.from(e.target.files || []))}
+                  onChange={(e) =>
+                    setManualFiles(Array.from(e.target.files || []))
+                  }
                 />
               </label>
               <label className="field">
@@ -577,11 +649,7 @@ export default function PvcWizard({ onVoiceUpdated }) {
       {step === "verify" && manualSubmitted && (
         <div>
           <h3>Manual verification requested</h3>
-          <p className="muted">
-            ElevenLabs will review your submission directly. This isn't instant — check back on
-            your ElevenLabs dashboard once it's approved, then come back here (or use the
-            dashboard) to start training.
-          </p>
+          <p className="muted">We will review your submission directly.</p>
         </div>
       )}
 
@@ -589,18 +657,22 @@ export default function PvcWizard({ onVoiceUpdated }) {
         <div>
           <h3>Training your voice</h3>
           <p className="muted">
-            This can take a while depending on how much audio you provided. Feel free to leave
-            this open in the background.
+            This can take a while depending on how much audio you provided. Feel
+            free to leave this open in the background.
           </p>
           <div className="total-bar">
             <div
               className="total-bar-fill"
-              style={{ width: `${trainProgress != null ? Math.round(trainProgress * 100) : 8}%` }}
+              style={{
+                width: `${trainProgress != null ? Math.round(trainProgress * 100) : 8}%`,
+              }}
             />
           </div>
           <p className="hint">
             Status: {trainState || "starting"}
-            {trainProgress != null ? ` · ${Math.round(trainProgress * 100)}%` : ""}
+            {trainProgress != null
+              ? ` · ${Math.round(trainProgress * 100)}%`
+              : ""}
           </p>
           {trainState === "failed" && (
             <button type="button" className="primary" onClick={startTraining}>
@@ -613,14 +685,16 @@ export default function PvcWizard({ onVoiceUpdated }) {
       {step === "done" && (
         <div className="success">
           <h3>Voice cloned</h3>
-          <p className="muted">Training finished — your professional voice clone is ready to use.</p>
+          <p className="muted">
+            Training finished — your professional voice clone is ready to use.
+          </p>
           <div className="voice-id">
             <span className="label">Voice ID</span>
             <code>{voiceId}</code>
           </div>
           <p className="muted small">
-            Save this ID somewhere safe — right now there are no accounts, so this confirmation is
-            the only record of it.
+            Save this ID somewhere safe — right now there are no accounts, so
+            this confirmation is the only record of it.
           </p>
           <button className="secondary" onClick={startOver}>
             Clone another voice

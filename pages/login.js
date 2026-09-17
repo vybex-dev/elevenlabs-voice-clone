@@ -56,7 +56,7 @@ export default function Login() {
   if (checkingAuth) {
     return (
       <div className="center-screen">
-        <p className="loading-text">Loading ElevenLabs Voice Studio…</p>
+        <p className="loading-text">Loading Voice Studio…</p>
         <style jsx>{`
           .center-screen {
             min-height: 100vh;
@@ -77,7 +77,7 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>Sign In - ElevenLabs Voice Studio</title>
+        <title>Sign In - Voice Studio</title>
       </Head>
 
       <main className="login-page">
@@ -86,7 +86,8 @@ export default function Login() {
             <span className="logo-icon">🎙️</span>
             <h1>Voice Studio</h1>
             <p className="sub">
-              Sign in with your assigned credentials to access the Professional Voice Clone studio.
+              Sign in with your assigned credentials to access the Professional
+              Voice Clone studio.
             </p>
           </div>
 
@@ -124,7 +125,8 @@ export default function Login() {
 
           <div className="login-footer">
             <p>
-              Accounts are managed by the administrator. Contact your admin if you need access.
+              Accounts are managed by the administrator. Contact your admin if
+              you need access.
             </p>
           </div>
         </div>

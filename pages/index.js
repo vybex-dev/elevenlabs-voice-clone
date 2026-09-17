@@ -34,7 +34,7 @@ export default function Home() {
   if (loadingAuth) {
     return (
       <div className="auth-loading">
-        <p>Loading ElevenLabs Voice Studio…</p>
+        <p>Loading Voice Studio…</p>
         <style jsx>{`
           .auth-loading {
             min-height: 100vh;
@@ -72,8 +72,8 @@ export default function Home() {
               Studio quality, fully yours.
             </h1>
             <p className="sub">
-              Record or upload samples, verify it&rsquo;s really you, and
-              ElevenLabs will train a high-fidelity clone of your voice.
+              Record or upload samples, verify it&rsquo;s really you, and model
+              will train a high-fidelity clone of your voice.
             </p>
           </div>
           <Waveform />
@@ -90,8 +90,7 @@ export default function Home() {
         <footer>
           <p>
             By using this tool you confirm the voice belongs to you or you have
-            permission to clone it. ElevenLabs will additionally verify this by
-            voice before training.
+            permission to clone it.
           </p>
         </footer>
       </main>

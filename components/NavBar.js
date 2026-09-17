@@ -20,7 +20,7 @@ export default function NavBar({ user }) {
         <div className="nav-brand">
           <Link href="/" className="brand-link">
             <span className="brand-icon">🎙️</span>
-            <span className="brand-title">ElevenLabs PVC Studio</span>
+            <span className="brand-title">PVC Studio</span>
           </Link>
         </div>
 
@@ -44,7 +44,9 @@ export default function NavBar({ user }) {
             </nav>
 
             <div className="user-badge">
-              <span className="user-avatar">{user.username.charAt(0).toUpperCase()}</span>
+              <span className="user-avatar">
+                {user.username.charAt(0).toUpperCase()}
+              </span>
               <span className="user-name">{user.username}</span>
               {user.role === "admin" && <span className="role-tag">Admin</span>}
             </div>
