@@ -471,7 +471,8 @@ export default function PvcWizard({ onVoiceUpdated }) {
           <AudioCapture
             onCapture={handleNewSample}
             maxSeconds={1800}
-            instructions="Read naturally, in a quiet room. Each take can be up to 30 minutes — add as many as you like."
+            autoSegmentSeconds={90}
+            instructions="Read naturally, in a quiet room. Keep going for as long as you like (up to 30 minutes) — it uploads automatically in the background every minute or so."
             confirmLabel="Add this sample"
           />
 

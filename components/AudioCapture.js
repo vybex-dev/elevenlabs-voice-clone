@@ -21,6 +21,18 @@ export default function AudioCapture({
   // counts DOWN instead of up, and turns urgent-looking near the end. Leave
   // unset for normal, long-form sample recording.
   countdownSeconds = null,
+  // When set, a single continuous recording is silently split into
+  // back-to-back chunks of roughly this many seconds each, and every chunk
+  // is uploaded (via onCapture) as soon as it's ready instead of waiting for
+  // the whole take to finish. This exists because our upload API runs as a
+  // Vercel serverless function, which hard-caps request bodies at 4.5MB
+  // (platform limit, not something we can raise from app code) — a 30-minute
+  // take can easily be 10-30MB+, so long single-blob uploads 413 with
+  // FUNCTION_PAYLOAD_TOO_LARGE. Chunking keeps every individual upload small
+  // while letting the person just talk for as long as they want. Leave unset
+  // to keep the old "record → preview → confirm" single-blob flow (fine for
+  // short, bounded recordings like the captcha).
+  autoSegmentSeconds = null,
 }) {
   const [mode, setMode] = useState("record"); // "record" | "upload"
   const [isRecording, setIsRecording] = useState(false);
@@ -38,6 +50,15 @@ export default function AudioCapture({
   const rafRef = useRef(null);
   const timerRef = useRef(null);
 
+  // Auto-segmentation bookkeeping (only used when autoSegmentSeconds is set)
+  const sessionActiveRef = useRef(false);
+  const elapsedRef = useRef(0);
+  const segmentStartElapsedRef = useRef(0);
+
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
+
   useEffect(() => () => cleanupMedia(), []);
   useEffect(() => {
     return () => {
@@ -51,6 +72,51 @@ export default function AudioCapture({
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
     if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
       audioCtxRef.current.close();
+    }
+  }
+
+  // Starts (or restarts, for the next auto-segment) a MediaRecorder on the
+  // given stream. In auto-segment mode, onstop uploads the finished chunk
+  // immediately and — if the overall session is still active — kicks off
+  // the next chunk right away, so recording continues with only a brief gap.
+  function beginSegment(stream) {
+    const recorder = new MediaRecorder(stream);
+    chunksRef.current = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => {
+      const recordedBlob = new Blob(chunksRef.current, {
+        type: recorder.mimeType || "audio/webm",
+      });
+      chunksRef.current = [];
+
+      if (autoSegmentSeconds) {
+        if (recordedBlob.size > 0) {
+          const segDuration = Math.max(
+            1,
+            elapsedRef.current - segmentStartElapsedRef.current,
+          );
+          onCapture(recordedBlob, segDuration);
+        }
+        if (sessionActiveRef.current) {
+          segmentStartElapsedRef.current = elapsedRef.current;
+          beginSegment(stream);
+        }
+      } else {
+        setBlob(recordedBlob);
+        setPreviewUrl(URL.createObjectURL(recordedBlob));
+      }
+    };
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+  }
+
+  // Ends just the current chunk (auto-segment mode); beginSegment's onstop
+  // handler seamlessly starts the next one since the session is still active.
+  function rotateSegment() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
     }
   }
 
@@ -69,20 +135,10 @@ export default function AudioCapture({
       analyserRef.current = analyser;
       tickLevel();
 
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const recordedBlob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
-        setBlob(recordedBlob);
-        setPreviewUrl(URL.createObjectURL(recordedBlob));
-      };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
+      sessionActiveRef.current = true;
+      segmentStartElapsedRef.current = 0;
+      beginSegment(stream);
+
       setIsRecording(true);
       setElapsed(0);
 
@@ -90,7 +146,17 @@ export default function AudioCapture({
       timerRef.current = setInterval(() => {
         setElapsed((prev) => {
           const next = prev + 1;
-          if (next >= hardLimit) stopRecording();
+          if (next >= hardLimit) {
+            stopRecording();
+            return next;
+          }
+          if (
+            autoSegmentSeconds &&
+            !countdownSeconds &&
+            next - segmentStartElapsedRef.current >= autoSegmentSeconds
+          ) {
+            rotateSegment();
+          }
           return next;
         });
       }, 1000);
@@ -113,6 +179,7 @@ export default function AudioCapture({
   }
 
   function stopRecording() {
+    sessionActiveRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
@@ -120,9 +187,23 @@ export default function AudioCapture({
     cleanupMedia();
   }
 
+  // Files picked here go up as a single request (they're not re-encoded, so
+  // we can't safely auto-segment them the way live recordings are chunked).
+  // Vercel's serverless functions hard-cap request bodies at 4.5MB, so warn
+  // before the person hits an opaque upload failure.
+  const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // a little under the 4.5MB platform cap
+
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setMicError(
+        `That file is ${(file.size / 1024 / 1024).toFixed(1)}MB — files over ~4MB fail to upload. Trim it to a shorter clip, or use "Record" instead, which uploads in small chunks automatically.`
+      );
+      e.target.value = "";
+      return;
+    }
+    setMicError("");
     setBlob(file);
     setPreviewUrl(URL.createObjectURL(file));
   }
