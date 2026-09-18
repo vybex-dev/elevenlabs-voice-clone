@@ -49,6 +49,13 @@ function formatDuration(totalSeconds) {
   return `${m}m ${s % 60}s`;
 }
 
+function formatUnlockTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString();
+}
+
 export default function PvcWizard({ onVoiceUpdated }) {
   const [step, setStep] = useState("details");
   const [error, setError] = useState("");
@@ -70,6 +77,10 @@ export default function PvcWizard({ onVoiceUpdated }) {
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [verifyAttempts, setVerifyAttempts] = useState(0);
+  // Set once the server tells us ElevenLabs has locked this voice out of
+  // further verification attempts (their cap, not one we invented) — an ISO
+  // timestamp estimating when it's worth trying again, or null when unlocked.
+  const [verificationLockedUntil, setVerificationLockedUntil] = useState(null);
   const [showManualVerification, setShowManualVerification] = useState(false);
   const [manualExtraText, setManualExtraText] = useState("");
   const [manualFiles, setManualFiles] = useState([]);
@@ -218,8 +229,16 @@ export default function PvcWizard({ onVoiceUpdated }) {
     try {
       const res = await fetch(`/api/pvc/captcha?voiceId=${voiceId}`);
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
+        if (data.code === "max_verification_attempts_reached") {
+          // Known, expected condition — not a generic error. Show the
+          // dedicated locked-out panel instead of the raw error banner, and
+          // don't touch verifyAttempts / captchaDataUri.
+          setVerificationLockedUntil(data.retryAfter || null);
+          return;
+        }
         throw new Error(data.error || "Couldn't load the verification image.");
+      }
       setCaptchaDataUri(data.dataUri);
     } catch (err) {
       setError(err.message || "Something went wrong loading verification.");
@@ -245,7 +264,17 @@ export default function PvcWizard({ onVoiceUpdated }) {
         body: form,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Verification failed.");
+      if (!res.ok) {
+        if (data.code === "max_verification_attempts_reached") {
+          // ElevenLabs' own attempt cap, not a "wrong reading" — show the
+          // locked-out panel and stop here. In particular, don't fetch
+          // another captcha: it would just hit the same cap and overwrite
+          // this clear message with a second, confusing raw error.
+          setVerificationLockedUntil(data.retryAfter || null);
+          return;
+        }
+        throw new Error(data.error || "Verification failed.");
+      }
       setVerified(true);
       onVoiceUpdated?.();
     } catch (err) {
@@ -357,6 +386,7 @@ export default function PvcWizard({ onVoiceUpdated }) {
     setCaptchaDataUri(null);
     setVerified(false);
     setVerifyAttempts(0);
+    setVerificationLockedUntil(null);
     setShowManualVerification(false);
     setManualSubmitted(false);
     setManualVerificationUnavailable(false);
@@ -553,45 +583,85 @@ export default function PvcWizard({ onVoiceUpdated }) {
             voice/setup as your samples.
           </p>
 
-          {captchaLoading && (
-            <p className="hint">Loading verification image…</p>
-          )}
-          {captchaDataUri && !verified && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={captchaDataUri}
-              alt="Text to read aloud for verification"
-              className="captcha-image"
-            />
-          )}
-
-          {!verified && !showManualVerification && (
+          {verificationLockedUntil && !verified && !showManualVerification ? (
             <>
-              <AudioCapture
-                allowUpload={false}
-                countdownSeconds={10}
-                instructions="Start speaking the instant you hit record — recording auto-stops at 10 seconds."
-                confirmLabel={
-                  verifying ? "Verifying…" : "Submit for verification"
-                }
-                onCapture={submitCaptchaRecording}
-              />
-              {verifyAttempts >= 2 && !manualVerificationUnavailable && (
+              <p className="hint">
+                You've used up the verification attempts ElevenLabs allows for
+                this voice.{" "}
+                {formatUnlockTime(verificationLockedUntil)
+                  ? `Worth trying the CAPTCHA again after ${formatUnlockTime(verificationLockedUntil)}.`
+                  : "They ask you to wait about 24 hours before trying again."}
+              </p>
+              {!manualVerificationUnavailable ? (
                 <button
                   type="button"
-                  className="link-btn"
+                  className="primary"
                   onClick={() => setShowManualVerification(true)}
                 >
-                  Having trouble? Request manual verification instead
+                  Request manual verification instead
                 </button>
-              )}
-              {manualVerificationUnavailable && (
+              ) : (
                 <p className="hint">
                   Manual verification isn't enabled for this the workspace, so
-                  retrying the 10-second CAPTCHA above is the only path right
-                  now. If it keeps failing, wait a bit and try again with the
-                  same mic/setup you used for your samples, or contact admin.
+                  waiting out the attempt limit is the only path right now, or
+                  contact admin.
                 </p>
+              )}
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setVerificationLockedUntil(null);
+                  loadCaptcha();
+                }}
+              >
+                Check again
+              </button>
+            </>
+          ) : (
+            <>
+              {captchaLoading && (
+                <p className="hint">Loading verification image…</p>
+              )}
+              {captchaDataUri && !verified && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={captchaDataUri}
+                  alt="Text to read aloud for verification"
+                  className="captcha-image"
+                />
+              )}
+
+              {!verified && !showManualVerification && (
+                <>
+                  <AudioCapture
+                    allowUpload={false}
+                    countdownSeconds={10}
+                    awaitCapture
+                    instructions="Start speaking the instant you hit record — recording auto-stops at 10 seconds."
+                    confirmLabel={
+                      verifying ? "Verifying…" : "Submit for verification"
+                    }
+                    onCapture={submitCaptchaRecording}
+                  />
+                  {verifyAttempts >= 2 && !manualVerificationUnavailable && (
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => setShowManualVerification(true)}
+                    >
+                      Having trouble? Request manual verification instead
+                    </button>
+                  )}
+                  {manualVerificationUnavailable && (
+                    <p className="hint">
+                      Manual verification isn't enabled for this the workspace, so
+                      retrying the 10-second CAPTCHA above is the only path right
+                      now. If it keeps failing, wait a bit and try again with the
+                      same mic/setup you used for your samples, or contact admin.
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}

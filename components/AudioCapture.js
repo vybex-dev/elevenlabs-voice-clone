@@ -33,6 +33,16 @@ export default function AudioCapture({
   // to keep the old "record → preview → confirm" single-blob flow (fine for
   // short, bounded recordings like the captcha).
   autoSegmentSeconds = null,
+  // When true, confirm() waits for onCapture's promise to settle before
+  // clearing the preview/blob, instead of resetting immediately. Off by
+  // default so long-form sample recording keeps its "start the next take
+  // immediately while this one uploads in the background" behavior. Turn it
+  // on for one-shot recordings (like the PVC captcha) where confirmLabel is
+  // meant to show live in-flight feedback (e.g. "Verifying…") — with the
+  // default behavior that label can never actually be seen, since the
+  // preview (and the button showing it) unmounts the instant onCapture is
+  // called, before its result is known.
+  awaitCapture = false,
 }) {
   const [mode, setMode] = useState("record"); // "record" | "upload"
   const [isRecording, setIsRecording] = useState(false);
@@ -41,6 +51,7 @@ export default function AudioCapture({
   const [blob, setBlob] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [micError, setMicError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -215,10 +226,25 @@ export default function AudioCapture({
     setElapsed(0);
   }
 
-  function confirm() {
-    if (!blob) return;
-    onCapture(blob, elapsed || undefined);
-    discard();
+  async function confirm() {
+    if (!blob || submitting) return;
+    if (!awaitCapture) {
+      // Fire-and-forget: reset right away so the next take can start while
+      // this one uploads in the background.
+      onCapture(blob, elapsed || undefined);
+      discard();
+      return;
+    }
+    // Keep the preview (and confirmLabel) on screen for the whole request,
+    // so an in-flight label like "Verifying…" is actually visible instead of
+    // vanishing the instant this is clicked.
+    setSubmitting(true);
+    try {
+      await onCapture(blob, elapsed || undefined);
+    } finally {
+      setSubmitting(false);
+      discard();
+    }
   }
 
   const displaySeconds = countdownSeconds != null ? Math.max(0, countdownSeconds - elapsed) : elapsed;
@@ -283,10 +309,20 @@ export default function AudioCapture({
         <div className="preview">
           <audio controls src={previewUrl} />
           <div className="preview-actions">
-            <button type="button" className="link-btn" onClick={discard}>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={discard}
+              disabled={submitting}
+            >
               Discard
             </button>
-            <button type="button" className="primary small" onClick={confirm}>
+            <button
+              type="button"
+              className="primary small"
+              onClick={confirm}
+              disabled={submitting}
+            >
               {confirmLabel}
             </button>
           </div>
